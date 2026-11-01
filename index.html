@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="id" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LaporTrack — Platform Transparansi Layanan Publik</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Google Fonts Plus Jakarta Sans -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Konfigurasi tema Tailwind (harus setelah script CDN Tailwind) -->
+    <script src="tailwind-config.js"></script>
+    <!-- CSS tambahan -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-slate-50/70 text-slate-800 font-sans min-h-screen flex flex-col justify-between antialiased selection:bg-civic-900 selection:text-white">
+    <!-- Login gate: tampil pertama sebelum dashboard -->
+    <section id="login-screen" style="display:flex" class="min-h-screen relative overflow-hidden bg-slate-50 flex items-center justify-center px-4 py-10">
+        <div class="absolute inset-0 pointer-events-none" aria-hidden="true">
+            <div class="absolute -top-24 -right-16 w-80 h-80 rounded-full bg-blue-100/70 blur-3xl"></div>
+            <div class="absolute -bottom-24 -left-16 w-80 h-80 rounded-full bg-cyan-100/60 blur-3xl"></div>
+        </div>
+        <div class="relative w-full max-w-5xl grid lg:grid-cols-2 bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
+            <div class="bg-gradient-to-br from-slate-900 via-blue-950 to-blue-900 text-white p-8 sm:p-10 flex flex-col justify-between min-h-[260px]">
+                <div>
+                    <div class="w-12 h-12 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center text-xl mb-7">
+                        <i class="fa-solid fa-layer-group"></i>
+                    </div>
+                    <p class="text-xs font-bold tracking-[0.2em] uppercase text-blue-200">Portal Layanan Publik</p>
+                    <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight mt-3 leading-tight">LaporTrack</h1>
+                    <p class="text-sm text-slate-300 mt-4 leading-6 max-w-md">Sampaikan laporan, pantau perkembangan, dan lihat proses penanganan masalah publik dalam satu tempat.</p>
+                </div>
+                <div class="mt-8 flex items-center gap-3 text-xs text-slate-300">
+                    <span class="w-2 h-2 rounded-full bg-cyan-300"></span>
+                    Prototipe interaktif WIA/MIA 2026
+                </div>
+            </div>
+            <div class="p-6 sm:p-10">
+                <div class="mb-6">
+                    <p class="text-xs font-bold uppercase tracking-widest text-blue-700">Selamat datang</p>
+                    <h2 class="text-2xl font-extrabold text-slate-900 mt-2">Masuk ke akunmu</h2>
+                    <p class="text-sm text-slate-500 mt-2">Pilih jenis akun, lalu masukkan kredensial demo.</p>
+                </div>
+                <form id="login-form" onsubmit="loginFromPage(event)" class="space-y-4">
+                    <div>
+                        <label for="login-role" class="block text-xs font-bold text-slate-700 mb-2">Masuk sebagai</label>
+                        <select id="login-role" required class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                            <option value="user">Masyarakat / User</option>
+                            <option value="admin">Admin Dispatcher</option>
+                            <option value="field">Admin Lapangan / Petugas Lapangan</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="login-email" class="block text-xs font-bold text-slate-700 mb-2">Email</label>
+                        <input id="login-email" type="email" autocomplete="username" required placeholder="nama@email.com" class="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                    </div>
+                    <div>
+                        <label for="login-password" class="block text-xs font-bold text-slate-700 mb-2">Password</label>
+                        <input id="login-password" type="password" autocomplete="current-password" required placeholder="Masukkan password demo" class="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100">
+                    </div>
+                    <p id="login-error" class="hidden text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2"></p>
+                    <button type="submit" class="w-full rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-bold text-sm py-3 transition shadow-sm shadow-blue-900/10">
+                        Masuk ke Dashboard <i class="fa-solid fa-arrow-right ml-2"></i>
+                    </button>
+                </form>
+                <div class="mt-6 border-t border-slate-100 pt-4">
+                    <p class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Akun demo untuk dicoba</p>
+                    <div class="space-y-2 text-xs text-slate-600">
+                        <button type="button" onclick="fillDemoLogin('user')" class="w-full text-left rounded-lg bg-slate-50 hover:bg-blue-50 border border-slate-100 px-3 py-2.5 flex justify-between gap-3"><span>Warga / User</span><span class="font-mono text-slate-500">warga1@mail.com</span></button>
+                        <button type="button" onclick="fillDemoLogin('admin')" class="w-full text-left rounded-lg bg-slate-50 hover:bg-blue-50 border border-slate-100 px-3 py-2.5 flex justify-between gap-3"><span>Admin Dispatcher</span><span class="font-mono text-slate-500">admin@laportrack.id</span></button>
+                        <button type="button" onclick="fillDemoLogin('field')" class="w-full text-left rounded-lg bg-slate-50 hover:bg-blue-50 border border-slate-100 px-3 py-2.5 flex justify-between gap-3"><span>Admin Lapangan</span><span class="font-mono text-slate-500">petugas@laportrack.id</span></button>
+                    </div>
+                    <p class="text-[10px] text-slate-400 mt-3">Password demo untuk semua akun: <span class="font-bold">lapor123</span></p>
+                </div>
+            </div>
+        </div>
+    </section>
+    <div id="app-shell" style="display:none" class="">
+
+
+    <!-- Simulation Banner -->
+    <aside aria-label="Informasi Simulasi" class="bg-slate-900 text-slate-200 text-xs py-2 px-4 border-b border-slate-800">
+        <div class="max-w-7xl mx-auto flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+                <span class="font-medium"></span>
+            </div>
+            <div class="flex items-center gap-3">
+                <span id="current-user-badge" class="hidden sm:inline-block bg-slate-800 text-slate-300 px-2 py-0.5 rounded text-[11px] font-mono">Status: Anonim (Tamu)</span>
+                <span class="hidden md:inline-block text-slate-400 text-[11px]">WIA/MIA 2026</span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Header Navigation -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            
+            <!-- Logo -->
+            <a href="#" onclick="switchView('home')" class="flex items-center gap-3 group focus:outline-none">
+                <div class="w-9 h-9 rounded-lg bg-civic-900 text-white flex items-center justify-center font-bold shadow-sm transition group-hover:bg-civic-800">
+                    <i class="fa-solid fa-layer-group text-base"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-lg font-extrabold text-slate-900 tracking-tight leading-none">LaporTrack</span>
+                    </div>
+                    <p class="text-[11px] text-slate-500 font-medium">Portal Transparansi Layanan Publik</p>
+                </div>
+            </a>
+
+            <!-- Desktop Navigation Links -->
+            <nav class="hidden md:flex items-center gap-1">
+                <button onclick="switchView('home')" id="nav-home" class="nav-btn px-3 py-2 rounded-lg text-xs font-bold text-slate-600 hover:text-civic-900 hover:bg-slate-100 transition">
+                    <i class="fa-solid fa-house mr-1.5 text-slate-400"></i>Beranda
+                </button>
+                <button onclick="switchView('submit')" id="nav-submit" class="nav-btn px-3 py-2 rounded-lg text-xs font-bold text-slate-600 hover:text-civic-900 hover:bg-slate-100 transition">
+                    <i class="fa-solid fa-pen-to-square mr-1.5 text-slate-400"></i>Buat Laporan
+                </button>
+                <button onclick="switchView('track')" id="nav-track" class="nav-btn px-3 py-2 rounded-lg text-xs font-bold text-slate-600 hover:text-civic-900 hover:bg-slate-100 transition">
+                    <i class="fa-solid fa-magnifying-glass mr-1.5 text-slate-400"></i>Lacak Status
+                </button>
+
+                <!-- Role Specific Nav Buttons -->
+                <button onclick="switchView('admin')" id="nav-admin" class="nav-btn hidden px-3 py-2 rounded-lg text-xs font-bold text-slate-600 hover:text-civic-900 hover:bg-slate-100 transition">
+                    <i class="fa-solid fa-user-shield mr-1.5 text-slate-400"></i>Admin Dispatcher
+                </button>
+                <button onclick="switchView('field')" id="nav-field" class="nav-btn hidden px-3 py-2 rounded-lg text-xs font-bold text-slate-600 hover:text-civic-900 hover:bg-slate-100 transition">
+                    <i class="fa-solid fa-hard-hat mr-1.5 text-amber-500"></i>Tugas Lapangan
+                </button>
+                <button onclick="switchView('my-reports')" id="nav-my-reports" class="nav-btn hidden px-3 py-2 rounded-lg text-xs font-bold text-slate-600 hover:text-civic-900 hover:bg-slate-100 transition">
+                    <i class="fa-solid fa-folder-open mr-1.5 text-slate-400"></i>Laporan Saya
+                </button>
+            </nav>
+
+            <!-- Actions Right (Login / Profile) -->
+            <div class="hidden md:flex items-center gap-2">
+                <div id="auth-actions-container">
+                    <!-- Populated dynamically via updateAuthUI() -->
+                </div>
+                <button onclick="switchView('submit')" class="bg-civic-900 hover:bg-civic-800 text-white text-xs font-semibold px-4 py-2 rounded-lg shadow-sm transition flex items-center gap-2 active:scale-95">
+                    <i class="fa-solid fa-plus"></i> Lapor Masalah
+                </button>
+            </div>
+
+            <!-- Mobile Hamburger -->
+            <button onclick="toggleMobileMenu()" class="md:hidden p-2 text-slate-600 hover:text-slate-900 focus:outline-none">
+                <i class="fa-solid fa-bars text-xl"></i>
+            </button>
+        </div>
+
+        <!-- Mobile Drawer Menu -->
+        <div id="mobile-menu" class="hidden md:hidden border-t border-slate-200 bg-white px-4 pt-2 pb-4 space-y-1 shadow-lg">
+            <button onclick="switchView('home'); toggleMobileMenu();" class="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-100">
+                <i class="fa-solid fa-house w-5 text-slate-400"></i> Beranda
+            </button>
+            <button onclick="switchView('submit'); toggleMobileMenu();" class="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-100">
+                <i class="fa-solid fa-pen-to-square w-5 text-slate-400"></i> Buat Laporan Baru
+            </button>
+            <button onclick="switchView('track'); toggleMobileMenu();" class="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-100">
+                <i class="fa-solid fa-magnifying-glass w-5 text-slate-400"></i> Lacak Status Laporan
+            </button>
+            
+            <div id="mobile-role-links" class="pt-2 border-t border-slate-100 space-y-1">
+                <!-- Mobile role links injected dynamically -->
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Dynamic Content Container -->
+    <main class="flex-grow">
+
+        <!-- ================= VIEW 1: HOME & PUBLIC DASHBOARD ================= -->
+        <section id="view-home" class="view-section">
+            <div class="bg-gradient-to-b from-slate-900 via-civic-950 to-slate-900 text-white py-14 sm:py-18 px-4 border-b border-slate-800 relative overflow-hidden">
+                <div class="max-w-5xl mx-auto text-center relative z-10">
+                    <div class="inline-flex items-center gap-2 bg-white/10 border border-white/15 px-3 py-1 rounded-full text-xs font-medium text-slate-200 mb-4">
+                        <i class="fa-solid fa-building-columns text-civic-200"></i> Transparansi Pengaduan Fasilitas Publik Multi-Peran
+                    </div>
+                    <h1 class="text-3xl sm:text-5xl font-extrabold tracking-tight mb-4 leading-tight">
+                        Pantau Progres Penanganan Fasilitas Umum Secara Terbuka
+                    </h1>
+                    <p class="text-sm sm:text-base text-slate-300 max-w-2xl mx-auto mb-7 font-normal leading-relaxed">
+                        Kirimkan laporan permasalahan infrastruktur di sekitar Anda. Dapatkan nomor pelacakan resmi, pantau penugasan petugas lapangan, dan verifikasi hasil perbaikan.
+                    </p>
+                    <div class="flex flex-col sm:flex-row items-center justify-center gap-3 max-w-md mx-auto">
+                        <button onclick="switchView('submit')" class="w-full sm:w-auto bg-civic-600 hover:bg-civic-700 text-white font-semibold px-6 py-3 rounded-lg text-xs transition shadow-sm flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-plus"></i> Buat Laporan Baru
+                        </button>
+                        <button onclick="switchView('track')" class="w-full sm:w-auto bg-white/10 hover:bg-white/15 text-slate-200 border border-white/20 font-semibold px-6 py-3 rounded-lg text-xs transition flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-magnifying-glass"></i> Cek ID Laporan
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-7 relative z-20 mb-10">
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4">
+                    <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-200/80 flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center text-lg shrink-0">
+                            <i class="fa-solid fa-inbox"></i>
+                        </div>
+                        <div>
+                            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Laporan</p>
+                            <h3 id="stat-total" class="text-xl font-extrabold text-slate-900">0</h3>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-200/80 flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center text-lg shrink-0">
+                            <i class="fa-solid fa-hourglass-start"></i>
+                        </div>
+                        <div>
+                            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Menunggu</p>
+                            <h3 id="stat-pending" class="text-xl font-extrabold text-slate-900">0</h3>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-200/80 flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center text-lg shrink-0">
+                            <i class="fa-solid fa-spinner"></i>
+                        </div>
+                        <div>
+                            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Diproses</p>
+                            <h3 id="stat-process" class="text-xl font-extrabold text-slate-900">0</h3>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-200/80 flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center text-lg shrink-0">
+                            <i class="fa-solid fa-comments"></i>
+                        </div>
+                        <div>
+                            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Butuh Info</p>
+                            <h3 id="stat-info" class="text-xl font-extrabold text-slate-900">0</h3>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-200/80 flex items-center gap-3 col-span-2 md:col-span-1">
+                        <div class="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center text-lg shrink-0">
+                            <i class="fa-solid fa-circle-check"></i>
+                        </div>
+                        <div>
+                            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Selesai</p>
+                            <h3 id="stat-done" class="text-xl font-extrabold text-slate-900">0</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-16">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-900">Daftar Laporan Publik Terbaru</h2>
+                        <p class="text-slate-500 text-xs mt-0.5">Transparansi publik tanpa menampilkan data privasi identitas pelapor.</p>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2">
+                        <div class="relative w-full sm:w-64">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                            <input type="text" id="public-search" oninput="renderHomeReports()" placeholder="Cari kata kunci / ID..." class="pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-civic-900 w-full">
+                        </div>
+                        <select id="public-category-filter" onchange="renderHomeReports()" class="bg-white border border-slate-200 rounded-lg text-xs px-3 py-1.5 font-medium text-slate-700 focus:outline-none">
+                            <option value="">Semua Kategori</option>
+                            <option value="Fasilitas Jalan">Fasilitas Jalan</option>
+                            <option value="Lampu Penerangan">Lampu Penerangan</option>
+                            <option value="Saluran Air">Saluran Air</option>
+                            <option value="Kebersihan & Sampah">Kebersihan & Sampah</option>
+                            <option value="Fasilitas Taman">Fasilitas Taman</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="home-reports-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                </div>
+            </div>
+        </section>
+
+        <section id="view-submit" class="view-section hidden py-10 px-4 sm:px-6">
+            <div class="max-w-2xl mx-auto bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="border-b border-slate-200 px-6 py-5 bg-slate-50/50">
+                    <span class="text-xs font-bold text-civic-900 uppercase tracking-wider">Formulir Pelaporan Masalah Publik</span>
+                    <h1 class="text-xl font-bold text-slate-900 mt-1">Sampaikan Laporan Permasalahan</h1>
+                    <p class="text-slate-500 text-xs mt-0.5">Mohon cantumkan rincian yang jelas agar memudahkan tim memverifikasi lokasi.</p>
+                </div>
+
+                <form id="report-form" onsubmit="handleReportSubmit(event)" class="p-6 space-y-5">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Judul Laporan <span class="text-red-500">*</span></label>
+                        <input type="text" id="rep-title" required placeholder="Contoh: Aspal Berlubang di Depan Puskesmas" class="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-xs focus:outline-none focus:border-civic-900 focus:ring-1 focus:ring-civic-900">
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Kategori Permasalahan <span class="text-red-500">*</span></label>
+                            <select id="rep-category" required class="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-xs focus:outline-none focus:border-civic-900 focus:ring-1 focus:ring-civic-900 bg-white">
+                                <option value="">-- Pilih Kategori --</option>
+                                <option value="Fasilitas Jalan">Fasilitas Jalan</option>
+                                <option value="Lampu Penerangan">Lampu Penerangan</option>
+                                <option value="Saluran Air">Saluran Air</option>
+                                <option value="Kebersihan & Sampah">Kebersihan & Sampah</option>
+                                <option value="Fasilitas Taman">Fasilitas Taman</option>
+                                <option value="Lainnya">Lainnya</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Instansi Terkait (Opsional)</label>
+                            <select id="rep-agency" class="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-xs focus:outline-none focus:border-civic-900 focus:ring-1 focus:ring-civic-900 bg-white">
+                                <option value="Dinas PUPR">Dinas PUPR</option>
+                                <option value="Dinas Perhubungan">Dinas Perhubungan</option>
+                                <option value="Dinas Lingkungan Hidup">Dinas Lingkungan Hidup</option>
+                                <option value="Satpol PP">Satpol PP</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Lokasi / Alamat Spesifik <span class="text-red-500">*</span></label>
+                        <input type="text" id="rep-location" required placeholder="Contoh: Jl. Sudirman No. 12, Kel. Kencana" class="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-xs focus:outline-none focus:border-civic-900 focus:ring-1 focus:ring-civic-900">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Deskripsi Lengkap Permasalahan <span class="text-red-500">*</span></label>
+                        <textarea id="rep-desc" required rows="4" placeholder="Jelaskan kondisi fisik kerusakan, tingkat potensi bahaya, atau perkiraan waktu kejadian..." class="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-xs focus:outline-none focus:border-civic-900 focus:ring-1 focus:ring-civic-900"></textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Lampiran Foto Bukti Lapangan</label>
+                        <div class="border border-dashed border-slate-300 hover:border-civic-900 rounded-lg p-5 text-center transition bg-slate-50/50 cursor-pointer" onclick="document.getElementById('rep-file').click()">
+                            <i class="fa-solid fa-cloud-arrow-up text-slate-400 text-2xl mb-1"></i>
+                            <p class="text-xs font-semibold text-slate-700">Klik untuk unggah berkas foto</p>
+                            <p class="text-[11px] text-slate-400 mt-0.5">Format JPG, PNG, WEBP (Simulasi preview otomatis)</p>
+                            <input type="file" id="rep-file" class="hidden" accept="image/*" onchange="handleFileSelect(event)">
+                            <div id="file-preview-display" class="mt-2 text-xs font-bold text-civic-900"></div>
+                        </div>
+                    </div>
+
+                    <div class="bg-amber-50/80 border border-amber-200/80 p-3.5 rounded-lg flex items-start gap-2.5">
+                        <i class="fa-solid fa-shield-halved text-amber-700 text-xs mt-0.5"></i>
+                        <p class="text-[11px] text-amber-900 leading-relaxed">
+                            <strong>Jaminan Privasi Pelapor:</strong> Identitas pelapor dilindungi serta disembunyikan pada tampilan publik demi keamanan data pribadi.
+                        </p>
+                    </div>
+
+                    <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+                        <button type="button" onclick="switchView('home')" class="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 font-semibold text-xs hover:bg-slate-50">Batal</button>
+                        <button type="submit" class="px-5 py-2 rounded-lg bg-civic-900 hover:bg-civic-800 text-white font-semibold text-xs shadow-sm flex items-center gap-1.5">
+                            <i class="fa-solid fa-paper-plane"></i> Kirimkan Laporan
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <section id="view-track" class="view-section hidden py-10 px-4 sm:px-6">
+            <div class="max-w-3xl mx-auto">
+                <div class="text-center mb-6">
+                    <span class="text-xs font-bold text-civic-900 uppercase tracking-widest bg-civic-50 px-2.5 py-1 rounded border border-civic-100">Pelacakan Terbuka</span>
+                    <h1 class="text-2xl font-bold text-slate-900 mt-2">Cek Status & Perkembangan Laporan</h1>
+                    <p class="text-slate-500 text-xs mt-1">Masukkan Nomor Unik Referensi Laporan Anda untuk melihat timeline terkini.</p>
+                </div>
+
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-6">
+                    <div class="flex flex-col sm:flex-row gap-2">
+                        <div class="relative flex-grow">
+                            <i class="fa-solid fa-ticket absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                            <input type="text" id="track-input" placeholder="Contoh ID: LPR-2026-X8B9" class="w-full pl-9 pr-3 py-2.5 rounded-lg border border-slate-200 font-mono text-xs uppercase font-bold focus:outline-none focus:ring-1 focus:ring-civic-900">
+                        </div>
+                        <button onclick="handleTrackSearch()" class="bg-civic-900 hover:bg-civic-800 text-white font-semibold px-6 py-2.5 rounded-lg text-xs transition shrink-0 flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-magnifying-glass"></i> Cari Status
+                        </button>
+                    </div>
+
+                    <div class="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2 text-xs">
+                        <span class="text-slate-400 text-[11px] font-semibold">Uji Coba Cepat (ID Demo):</span>
+                        <button onclick="presetTrack('LPR-2026-X8B9')" class="font-mono bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded text-[11px] font-bold text-slate-700">LPR-2026-X8B9</button>
+                        <button onclick="presetTrack('LPR-2026-K72P')" class="font-mono bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded text-[11px] font-bold text-slate-700">LPR-2026-K72P</button>
+                        <button onclick="presetTrack('LPR-2026-M41Q')" class="font-mono bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded text-[11px] font-bold text-slate-700">LPR-2026-M41Q</button>
+                    </div>
+                </div>
+
+                <div id="track-result-container" class="hidden"></div>
+            </div>
+        </section>
+
+        <section id="view-admin" class="view-section hidden py-8 px-4 sm:px-6">
+            <div class="max-w-7xl mx-auto">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="bg-civic-900 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">Akses Admin Web / Dispatcher</span>
+                            <span class="text-xs text-slate-500 font-medium">Pengelola Central Dinas</span>
+                        </div>
+                        <h1 class="text-2xl font-bold text-slate-900 mt-1">Verifikasi & Penugasan Petugas Lapangan</h1>
+                    </div>
+                    <button onclick="resetDataToDefault()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition border border-slate-200 flex items-center gap-1.5 self-start">
+                        <i class="fa-solid fa-arrows-rotate"></i> Reset Data
+                    </button>
+                </div>
+
+                <div class="bg-white p-4 rounded-xl border border-slate-200 mb-4 flex flex-col md:flex-row gap-3 items-center justify-between shadow-sm">
+                    <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                        <input type="text" id="admin-search" oninput="renderAdminTable()" placeholder="Cari ID, judul, lokasi..." class="px-3 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-civic-900 w-full sm:w-60">
+                        <select id="admin-filter-status" onchange="renderAdminTable()" class="bg-white border border-slate-200 rounded-lg text-xs px-3 py-1.5 font-medium text-slate-700">
+                            <option value="">Semua Status</option>
+                            <option value="Menunggu Verifikasi">Menunggu Verifikasi</option>
+                            <option value="Diproses">Diproses</option>
+                            <option value="Menunggu Informasi dari Pelapor">Menunggu Informasi dari Pelapor</option>
+                            <option value="Selesai">Selesai</option>
+                        </select>
+                    </div>
+                    <span id="admin-count-label" class="text-xs font-semibold text-slate-500">Menampilkan 0 Laporan</span>
+                </div>
+
+                <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                                    <th class="py-3 px-4">ID & Tanggal</th>
+                                    <th class="py-3 px-4">Detail Kerusakan</th>
+                                    <th class="py-3 px-4">Petugas Lapangan</th>
+                                    <th class="py-3 px-4">Status Penanganan</th>
+                                    <th class="py-3 px-4 text-right">Tindakan Admin</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-table-body" class="divide-y divide-slate-100 text-xs"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="view-field" class="view-section hidden py-8 px-4 sm:px-6">
+            <div class="max-w-5xl mx-auto">
+                <div class="bg-blue-50 text-slate-800 border border-blue-100 p-5 rounded-xl mb-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="bg-blue-700 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">Akses Petugas Lapangan</span>
+                            <span class="text-xs font-semibold">Tim Teknisi Physical</span>
+                        </div>
+                        <h1 id="field-officer-name-title" class="text-xl font-extrabold mt-1">Daftar Tugas Perbaikan Lapangan</h1>
+                    </div>
+                    <div class="text-xs font-bold bg-white text-blue-800 px-3 py-1.5 rounded-lg border border-blue-100">
+                        <i class="fa-solid fa-hard-hat mr-1"></i> Mode Mobile Technician
+                    </div>
+                </div>
+
+                <div id="field-tasks-container" class="space-y-4">
+                </div>
+            </div>
+        </section>
+
+        <section id="view-my-reports" class="view-section hidden py-8 px-4 sm:px-6">
+            <div class="max-w-5xl mx-auto">
+                <div class="mb-6">
+                    <h1 class="text-2xl font-bold text-slate-900">Riwayat Laporan Saya</h1>
+                    <p class="text-xs text-slate-500 mt-1">Daftar aduan yang pernah Anda kirimkan melalui akun ini.</p>
+                </div>
+                <div id="my-reports-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+            </div>
+        </section>
+
+    </main>
+
+    <div id="modal-container" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs hidden flex items-center justify-center p-4">
+        <div id="modal-content" class="bg-white rounded-xl max-w-lg w-full p-6 shadow-xl border border-slate-200 relative"></div>
+    </div>
+
+    <div id="login-modal" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl max-w-sm w-full p-6 shadow-xl border border-slate-200">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                <h3 class="font-bold text-slate-900 text-sm">Masuk ke Akun LaporTrack</h3>
+                <button onclick="toggleLoginModal(false)" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <p class="text-xs text-slate-500 mb-4">Pilih peran akun untuk melakukan simulasi pengujian sistem:</p>
+
+            <div class="space-y-2">
+                <button onclick="loginAs('user')" class="w-full p-3 rounded-lg border border-slate-200 hover:border-civic-900 text-left hover:bg-slate-50 transition flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-blue-50 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0"><i class="fa-solid fa-user"></i></div>
+                    <div>
+                        <div class="font-bold text-xs text-slate-900">Masyarakat / Pelapor</div>
+                        <div class="text-[10px] text-slate-500">Akses riwayat & pengiriman aduan</div>
+                    </div>
+                </button>
+
+                <button onclick="loginAs('admin')" class="w-full p-3 rounded-lg border border-slate-200 hover:border-civic-900 text-left hover:bg-slate-50 transition flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-civic-100 text-civic-900 flex items-center justify-center font-bold text-xs shrink-0"><i class="fa-solid fa-user-shield"></i></div>
+                    <div>
+                        <div class="font-bold text-xs text-slate-900">Admin Dispatcher Web</div>
+                        <div class="text-[10px] text-slate-500">Verifikasi, ubah status & disposisi</div>
+                    </div>
+                </button>
+
+                <button onclick="loginAs('field')" class="w-full p-3 rounded-lg border border-slate-200 hover:border-amber-500 text-left hover:bg-slate-50 transition flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-xs shrink-0"><i class="fa-solid fa-hard-hat"></i></div>
+                    <div>
+                        <div class="font-bold text-xs text-slate-900">Petugas Lapangan (PUPR/Dishub)</div>
+                        <div class="text-[10px] text-slate-500">Update progres fisik & upload bukti</div>
+                    </div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-white border-t border-slate-200 mt-16 py-6 text-xs text-slate-500">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+            <div class="flex items-center gap-2">
+                <span class="w-5 h-5 rounded bg-civic-900 text-white font-bold flex items-center justify-center text-[10px]">L</span>
+                <span class="font-bold text-slate-800">LaporTrack v1.3</span> — Transparansi Layanan Publik
+            </div>
+            <p>
+                Tagline: <em>"Laporan Jelas, Progres Terpantau."</em> • Prototype Lomba WIA/MIA 2026
+            </p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+    </div>
+</body>
+</html>
