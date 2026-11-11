@@ -1,9 +1,54 @@
-const fieldOfficersList = [
+/**
+ * LaporTrack - Client Side Script dengan Integrasi Database MySQL
+ * Mendukung integrasi REST API (tabel users, reports, report_timelines)
+ * dan fallback lokal jika server database belum aktif.
+ */
+
+// =========================================================================
+// 1. KONFIGURASI API & DETEKSI OTOMATIS ENDPOINT
+// =========================================================================
+let isOnlineDb = false;
+
+function getApiBaseUrl() {
+    if (window.API_BASE_URL) return window.API_BASE_URL;
+
+    const host = window.location.hostname;
+    const port = window.location.port;
+    const path = window.location.pathname;
+
+    // Jika diakses via XAMPP localhost
+    if (host === 'localhost' || host === '127.0.0.1') {
+        if (path.includes('/laportrack-backend')) {
+            return `${window.location.protocol}//${window.location.host}/laportrack-backend/api`;
+        }
+        if (path.includes('/Lapor_Track')) {
+            return `${window.location.protocol}//${window.location.host}/Lapor_Track/api`;
+        }
+        // Jika port adalah 8000 (PHP built-in server)
+        if (port === '8000') {
+            return `${window.location.protocol}//${window.location.host}/api`;
+        }
+        // Default Apache XAMPP path
+        if (!port || port === '80') {
+            return '/laportrack-backend/api';
+        }
+    }
+
+    // Default untuk Live Server VSCode (port 5500) atau file:///
+    // Mencoba koneksi ke backend lokal XAMPP atau PHP server port 8000
+    return 'http://localhost/laportrack-backend/api';
+}
+
+const API_BASE = getApiBaseUrl();
+
+// Fallback daftar petugas jika database offline
+let fieldOfficersList = [
     { id: "FO-01", name: "Budi Santoso", dept: "Dinas PUPR - Tim Jalan" },
     { id: "FO-02", name: "Rahmat Hidayat", dept: "Dinas Perhubungan - PJU" },
     { id: "FO-03", name: "Agus Pratama", dept: "Dinas LH - Kebersihan" }
 ];
 
+// Fallback data demo laporan untuk localStorage jika MySQL belum di-start
 const defaultReports = [
     {
         id: "LPR-2026-X8B9",
@@ -70,33 +115,149 @@ const defaultReports = [
     }
 ];
 
-let currentUser = null; // null (guest), { role: 'user', email: 'warga1@mail.com' }, { role: 'admin' }, { role: 'field', officerId: 'FO-01', name: 'Budi Santoso' }
-
-function getReports() {
-    const stored = localStorage.getItem('laportrack_v13_db');
-    if (!stored) {
-        localStorage.setItem('laportrack_v13_db', JSON.stringify(defaultReports));
-        return defaultReports;
-    }
-    return JSON.parse(stored);
-}
-
-function saveReports(data) {
-    localStorage.setItem('laportrack_v13_db', JSON.stringify(data));
-}
-
-function resetDataToDefault() {
-    localStorage.setItem('laportrack_v13_db', JSON.stringify(defaultReports));
-    renderCurrentView();
-    showToast("Data simulasi berhasil direset ke kondisi default!");
-}
-
+// Akun demo untuk tombol pengujian cepat
 const demoAccounts = {
     user:  { email: 'warga1@mail.com', password: 'lapor123' },
     admin: { email: 'admin@laportrack.id', password: 'lapor123' },
     field: { email: 'petugas@laportrack.id', password: 'lapor123' },
 };
 
+let currentUser = null;
+let cachedReports = [];
+
+// =========================================================================
+// 2. CEK KONEKSI DATABASE MYSQL & SINKRONISASI
+// =========================================================================
+async function checkDatabaseConnection() {
+    const badge = document.getElementById('db-status-badge');
+    
+    // Coba koneksi ke endpoint status
+    const candidates = [
+        API_BASE,
+        'http://localhost/laportrack-backend/api',
+        'http://localhost/Lapor_Track/api',
+        'http://localhost:8000/api',
+        './api'
+    ];
+
+    for (const url of candidates) {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 2000);
+            const res = await fetch(`${url}/auth.php?action=status`, { signal: controller.signal });
+            clearTimeout(timeoutId);
+
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success) {
+                    window.API_BASE_URL = url;
+                    isOnlineDb = true;
+                    if (badge) {
+                        badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[11px] font-semibold bg-emerald-950/80 text-emerald-300 border border-emerald-700/50';
+                        badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400"></span> MySQL: Terhubung (laportrack_db)`;
+                    }
+                    // Muat daftar petugas lapangan dari database
+                    loadOfficersFromDatabase();
+                    return true;
+                }
+            }
+        } catch (err) {
+            // Lanjutkan ke kandidat berikutnya
+        }
+    }
+
+    // Jika semua kandidat gagal
+    isOnlineDb = false;
+    if (badge) {
+        badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[11px] font-semibold bg-amber-950/70 text-amber-300 border border-amber-700/50';
+        badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-400"></span> MySQL: Offline (XAMPP belum aktif)`;
+        badge.title = 'Nyalakan Apache & MySQL di XAMPP Control Panel untuk menyimpan ke database permanen.';
+    }
+    return false;
+}
+
+// Mengambil daftar petugas lapangan langsung dari tabel users di database
+async function loadOfficersFromDatabase() {
+    if (!isOnlineDb) return;
+    try {
+        const res = await fetch(`${window.API_BASE_URL || API_BASE}/auth.php?action=officers`);
+        if (res.ok) {
+            const data = await res.json();
+            if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+                fieldOfficersList = data.data;
+            }
+        }
+    } catch (e) {
+        console.warn("Gagal memuat daftar petugas dari database, menggunakan data default.");
+    }
+}
+
+// =========================================================================
+// 3. OPERASI DATA REPORTS (DATABASE MYSQL + LOCALSTORAGE FALLBACK)
+// =========================================================================
+
+// Mengambil seluruh laporan
+async function fetchReportsAsync() {
+    if (isOnlineDb) {
+        try {
+            const res = await fetch(`${window.API_BASE_URL || API_BASE}/reports.php`);
+            if (res.ok) {
+                const result = await res.json();
+                if (result.success && Array.isArray(result.data)) {
+                    cachedReports = result.data;
+                    return cachedReports;
+                }
+            }
+        } catch (err) {
+            console.warn("Fetch reports database gagal, beralih ke cache lokal:", err);
+        }
+    }
+
+    // Fallback ke localStorage
+    const stored = localStorage.getItem('laportrack_v13_db');
+    if (!stored) {
+        localStorage.setItem('laportrack_v13_db', JSON.stringify(defaultReports));
+        cachedReports = defaultReports;
+    } else {
+        cachedReports = JSON.parse(stored);
+    }
+    return cachedReports;
+}
+
+function getReports() {
+    return cachedReports.length > 0 ? cachedReports : defaultReports;
+}
+
+function saveReportsLocal(data) {
+    cachedReports = data;
+    localStorage.setItem('laportrack_v13_db', JSON.stringify(data));
+}
+
+// Reset data laporan ke default
+async function resetDataToDefault() {
+    if (isOnlineDb) {
+        try {
+            const res = await fetch(`${window.API_BASE_URL || API_BASE}/reports.php?action=reset`, { method: 'POST' });
+            if (res.ok) {
+                const data = await res.json();
+                await fetchReportsAsync();
+                renderCurrentView();
+                showToast(data.message || "Data database MySQL berhasil direset ke kondisi default!");
+                return;
+            }
+        } catch (e) {
+            console.error("Gagal reset data ke database:", e);
+        }
+    }
+
+    saveReportsLocal(defaultReports);
+    renderCurrentView();
+    showToast("Data simulasi lokal berhasil direset ke kondisi default!");
+}
+
+// =========================================================================
+// 4. OTENTIKASI & LOGIN (TABEL users)
+// =========================================================================
 function fillDemoLogin(role) {
     document.getElementById('login-role').value = role;
     document.getElementById('login-email').value = demoAccounts[role].email;
@@ -104,19 +265,47 @@ function fillDemoLogin(role) {
     document.getElementById('login-error').classList.add('hidden');
 }
 
-function loginFromPage(event) {
+async function loginFromPage(event) {
     event.preventDefault();
     const role = document.getElementById('login-role').value;
     const email = document.getElementById('login-email').value.trim().toLowerCase();
     const password = document.getElementById('login-password').value;
+    const errorEl = document.getElementById('login-error');
+    errorEl.classList.add('hidden');
+
+    // 1. Coba verifikasi dengan Database MySQL via API
+    if (isOnlineDb) {
+        try {
+            const res = await fetch(`${window.API_BASE_URL || API_BASE}/auth.php?action=login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password, role })
+            });
+            const data = await res.json();
+
+            if (!data.success) {
+                errorEl.textContent = data.message || 'Login gagal. Periksa kembali kredensial Anda.';
+                errorEl.classList.remove('hidden');
+                return;
+            }
+
+            // Berhasil login dari database users
+            currentUser = data.user;
+            showToast(`Masuk sebagai ${currentUser.name} (Tabel Users MySQL)`);
+            finishLogin(role);
+            return;
+        } catch (err) {
+            console.warn("Gagal menghubungi server otentikasi database, mencoba pengecekan lokal:", err);
+        }
+    }
+
+    // 2. Fallback pengecekan manual jika MySQL offline
     const account = demoAccounts[role];
-    const error = document.getElementById('login-error');
     if (!account || email !== account.email || password !== account.password) {
-        error.textContent = 'Email atau password tidak sesuai dengan akun demo. Coba pilih salah satu akun demo di bawah.';
-        error.classList.remove('hidden');
+        errorEl.textContent = 'Email atau password tidak sesuai. Jika MySQL belum aktif, gunakan kredensial akun demo di bawah.';
+        errorEl.classList.remove('hidden');
         return;
     }
-    error.classList.add('hidden');
 
     if (role === 'user') {
         currentUser = { role: 'user', name: 'Warga Pelapor', email: account.email };
@@ -125,7 +314,12 @@ function loginFromPage(event) {
     } else if (role === 'field') {
         currentUser = { role: 'field', officerId: 'FO-01', name: 'Budi Santoso', dept: 'Dinas PUPR', email: account.email };
     }
-   
+
+    showToast(`Masuk sebagai ${currentUser.name} (Mode Simulasi)`);
+    finishLogin(role);
+}
+
+function finishLogin(role) {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app-shell').style.display = 'block';
     updateAuthUI();
@@ -135,10 +329,7 @@ function loginFromPage(event) {
         switchView(destination);
     } catch (err) {
         console.error('Gagal membuka dashboard:', err);
-        document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
-        const home = document.getElementById('view-home');
-        if (home) home.classList.remove('hidden');
-        activeViewName = 'home';
+        switchView('home');
     }
 }
 
@@ -212,11 +403,17 @@ function updateAuthUI() {
     }
 }
 
+// =========================================================================
+// 5. NAVIGASI VIEW & DASHBOARD UTAMA
+// =========================================================================
 let activeViewName = 'home';
-function switchView(viewName) {
+
+async function switchView(viewName) {
     activeViewName = viewName;
     document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
-    document.getElementById(`view-${viewName}`).classList.remove('hidden');
+    
+    const viewEl = document.getElementById(`view-${viewName}`);
+    if (viewEl) viewEl.classList.remove('hidden');
 
     document.querySelectorAll('.nav-btn').forEach(btn => {
         btn.classList.remove('text-civic-900', 'bg-slate-100');
@@ -229,10 +426,11 @@ function switchView(viewName) {
     }
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    renderCurrentView();
+    await renderCurrentView();
 }
 
-function renderCurrentView() {
+async function renderCurrentView() {
+    await fetchReportsAsync();
     if (activeViewName === 'home') renderHomeDashboard();
     if (activeViewName === 'admin') renderAdminTable();
     if (activeViewName === 'field') renderFieldTasks();
@@ -271,14 +469,15 @@ function renderHomeDashboard() {
 
 function renderHomeReports() {
     const reports = getReports();
-    const search = document.getElementById('public-search').value.toLowerCase();
-    const categoryFilter = document.getElementById('public-category-filter').value;
+    const search = (document.getElementById('public-search')?.value || '').toLowerCase();
+    const categoryFilter = document.getElementById('public-category-filter')?.value || '';
     const grid = document.getElementById('home-reports-grid');
+    if (!grid) return;
 
     const filtered = reports.filter(r => {
-        const matchesSearch = r.title.toLowerCase().includes(search) || 
-                              r.location.toLowerCase().includes(search) || 
-                              r.id.toLowerCase().includes(search);
+        const matchesSearch = (r.title || '').toLowerCase().includes(search) || 
+                              (r.location || '').toLowerCase().includes(search) || 
+                              (r.id || '').toLowerCase().includes(search);
         const matchesCategory = categoryFilter === "" || r.category === categoryFilter;
         return matchesSearch && matchesCategory;
     });
@@ -315,7 +514,11 @@ function renderHomeReports() {
     `).join('');
 }
 
+// =========================================================================
+// 6. FORMULIR PENGIRIMAN LAPORAN (TABEL reports & report_timelines)
+// =========================================================================
 let uploadedFileSim = null;
+
 function handleFileSelect(e) {
     const file = e.target.files[0];
     if (file) {
@@ -324,30 +527,79 @@ function handleFileSelect(e) {
     }
 }
 
-function handleReportSubmit(e) {
+async function handleReportSubmit(e) {
     e.preventDefault();
-    const reports = getReports();
 
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let randomCode = '';
-    for(let i=0; i<4; i++) randomCode += chars.charAt(Math.floor(Math.random() * chars.length));
+    for (let i = 0; i < 4; i++) randomCode += chars.charAt(Math.floor(Math.random() * chars.length));
     const generatedId = `LPR-2026-${randomCode}`;
 
+    const title = document.getElementById('rep-title').value;
+    const category = document.getElementById('rep-category').value;
+    const agency = document.getElementById('rep-agency').value;
+    const location = document.getElementById('rep-location').value;
+    const description = document.getElementById('rep-desc').value;
+    const reporterEmail = currentUser ? currentUser.email : "anonim@mail.com";
+    const actorName = currentUser ? currentUser.name : "Masyarakat";
+
+    // 1. Simpan ke Database MySQL jika online
+    if (isOnlineDb) {
+        try {
+            const formData = new FormData();
+            formData.append('id', generatedId);
+            formData.append('title', title);
+            formData.append('category', category);
+            formData.append('agency', agency);
+            formData.append('location', location);
+            formData.append('description', description);
+            formData.append('reporterEmail', reporterEmail);
+            formData.append('actorName', actorName);
+            formData.append('date', new Date().toISOString().split('T')[0]);
+
+            if (uploadedFileSim) {
+                formData.append('image_file', uploadedFileSim);
+            } else {
+                formData.append('image', '');
+            }
+
+            const res = await fetch(`${window.API_BASE_URL || API_BASE}/reports.php?action=create`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                showSuccessModal(generatedId);
+                document.getElementById('report-form').reset();
+                uploadedFileSim = null;
+                document.getElementById('file-preview-display').innerText = '';
+                showToast("Laporan berhasil disimpan permanen ke database MySQL!");
+                await fetchReportsAsync();
+                return;
+            }
+        } catch (err) {
+            console.warn("Gagal simpan ke database, fallback simpan lokal:", err);
+        }
+    }
+
+    // 2. Fallback simpan lokal jika MySQL offline
+    const reports = getReports();
     const newReport = {
         id: generatedId,
-        title: document.getElementById('rep-title').value,
-        category: document.getElementById('rep-category').value,
-        agency: document.getElementById('rep-agency').value,
-        location: document.getElementById('rep-location').value,
+        title: title,
+        category: category,
+        agency: agency,
+        location: location,
         date: new Date().toISOString().split('T')[0],
         status: "Menunggu Verifikasi",
-        description: document.getElementById('rep-desc').value,
+        description: description,
         image: uploadedFileSim ? "https://placehold.co/600x400/1e3a8a/ffffff?text=Foto+Bukti+Laporan" : "",
-        reporterEmail: currentUser ? currentUser.email : "anonim@mail.com",
+        reporterEmail: reporterEmail,
         assignedOfficerId: "",
         assignedOfficerName: "-",
         timeline: [
-            { status: "Menunggu Verifikasi", date: new Date().toLocaleDateString('id-ID') + ' WIB', actor: currentUser ? currentUser.name : "Masyarakat", note: "Laporan dikirimkan ke sistem." }
+            { status: "Menunggu Verifikasi", date: new Date().toLocaleDateString('id-ID') + ' WIB', actor: actorName, note: "Laporan dikirimkan ke sistem." }
         ],
         adminResponse: "",
         resolutionNotes: "",
@@ -355,7 +607,7 @@ function handleReportSubmit(e) {
     };
 
     reports.unshift(newReport);
-    saveReports(reports);
+    saveReportsLocal(reports);
 
     showSuccessModal(generatedId);
     document.getElementById('report-form').reset();
@@ -409,12 +661,15 @@ function copyToClipboard(text) {
     showToast("ID Referensi disalin ke clipboard!");
 }
 
+// =========================================================================
+// 7. PELACAKAN STATUS & AUDIT TIMELINE (TABEL report_timelines)
+// =========================================================================
 function presetTrack(id) {
     document.getElementById('track-input').value = id;
     handleTrackSearch();
 }
 
-function handleTrackSearch() {
+async function handleTrackSearch() {
     const inputVal = document.getElementById('track-input').value.trim().toUpperCase();
     const container = document.getElementById('track-result-container');
 
@@ -424,6 +679,24 @@ function handleTrackSearch() {
         return;
     }
 
+    // 1. Ambil detail laporan langsung dari MySQL jika online
+    if (isOnlineDb) {
+        try {
+            const res = await fetch(`${window.API_BASE_URL || API_BASE}/reports.php?id=${encodeURIComponent(inputVal)}`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success && data.data) {
+                    container.innerHTML = renderReportDetailCard(data.data);
+                    container.classList.remove('hidden');
+                    return;
+                }
+            }
+        } catch (err) {
+            console.warn("Gagal melacak via database, beralih ke cache lokal:", err);
+        }
+    }
+
+    // 2. Fallback pencarian lokal
     const reports = getReports();
     const report = reports.find(r => r.id === inputVal);
 
@@ -444,6 +717,8 @@ function viewReportDetail(id) {
 }
 
 function renderReportDetailCard(report) {
+    const timelineList = Array.isArray(report.timeline) ? report.timeline : [];
+
     return `
         <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <div class="border-b border-slate-200 p-5 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -508,11 +783,14 @@ function renderReportDetailCard(report) {
                     </div>
                 ` : ''}
 
-                <!-- Audit Progress Timeline -->
+                <!-- Audit Progress Timeline (Tersinkron dengan report_timelines) -->
                 <div>
-                    <h4 class="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">Timeline Penanganan Audit</h4>
+                    <div class="flex items-center justify-between mb-3">
+                        <h4 class="text-xs font-bold text-slate-900 uppercase tracking-wider">Timeline Penanganan Audit (Real-Time)</h4>
+                        <span class="text-[10px] text-slate-400 font-medium">Tersimpan di tabel report_timelines</span>
+                    </div>
                     <div class="border-l-2 border-slate-200 pl-4 space-y-4 ml-1">
-                        ${report.timeline.map(t => `
+                        ${timelineList.length > 0 ? timelineList.map(t => `
                             <div class="relative">
                                 <div class="absolute -left-[21px] top-0.5 w-2.5 h-2.5 rounded-full bg-civic-900 ring-4 ring-white"></div>
                                 <div class="flex items-center gap-2">
@@ -522,7 +800,7 @@ function renderReportDetailCard(report) {
                                 </div>
                                 <p class="text-xs text-slate-600 mt-0.5">${t.note}</p>
                             </div>
-                        `).join('')}
+                        `).join('') : '<p class="text-xs text-slate-400 italic">Belum ada catatan riwayat timeline.</p>'}
                     </div>
                 </div>
             </div>
@@ -530,21 +808,26 @@ function renderReportDetailCard(report) {
     `;
 }
 
+// =========================================================================
+// 8. DASHBOARD ADMIN DISPATCHER (DISPOSISI & UPDATE STATUS)
+// =========================================================================
 function renderAdminTable() {
     const reports = getReports();
-    const search = document.getElementById('admin-search').value.toLowerCase();
-    const statusFilter = document.getElementById('admin-filter-status').value;
+    const search = (document.getElementById('admin-search')?.value || '').toLowerCase();
+    const statusFilter = document.getElementById('admin-filter-status')?.value || '';
     const tbody = document.getElementById('admin-table-body');
+    if (!tbody) return;
 
     const filtered = reports.filter(r => {
-        const matchesSearch = r.id.toLowerCase().includes(search) || 
-                              r.title.toLowerCase().includes(search) || 
-                              r.location.toLowerCase().includes(search);
+        const matchesSearch = (r.id || '').toLowerCase().includes(search) || 
+                              (r.title || '').toLowerCase().includes(search) || 
+                              (r.location || '').toLowerCase().includes(search);
         const matchesStatus = statusFilter === "" || r.status === statusFilter;
         return matchesSearch && matchesStatus;
     });
 
-    document.getElementById('admin-count-label').innerText = `Menampilkan ${filtered.length} dari ${reports.length} laporan`;
+    const countLabel = document.getElementById('admin-count-label');
+    if (countLabel) countLabel.innerText = `Menampilkan ${filtered.length} dari ${reports.length} laporan`;
 
     if (filtered.length === 0) {
         tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-400 text-xs font-medium">Tidak ada data aduan.</td></tr>`;
@@ -625,11 +908,8 @@ function openAdminModal(id) {
     modal.classList.remove('hidden');
 }
 
-function handleAdminUpdate(e, id) {
+async function handleAdminUpdate(e, id) {
     e.preventDefault();
-    const reports = getReports();
-    const report = reports.find(r => r.id === id);
-    if (!report) return;
 
     const newStatus = document.getElementById('admin-up-status').value;
     const newOfficerId = document.getElementById('admin-up-officer').value;
@@ -638,13 +918,44 @@ function handleAdminUpdate(e, id) {
     const officerObj = fieldOfficersList.find(o => o.id === newOfficerId);
     const officerName = officerObj ? officerObj.name : '-';
 
+    // 1. Simpan update ke database MySQL via API
+    if (isOnlineDb) {
+        try {
+            const res = await fetch(`${window.API_BASE_URL || API_BASE}/reports.php?action=admin_update`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: id,
+                    status: newStatus,
+                    assignedOfficerId: newOfficerId,
+                    assignedOfficerName: officerName,
+                    adminResponse: newResponse
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                closeModal();
+                showToast(`Disposisi laporan ${id} berhasil dicatat ke timeline MySQL!`);
+                await fetchReportsAsync();
+                renderAdminTable();
+                return;
+            }
+        } catch (err) {
+            console.warn("Gagal update admin ke database, beralih ke penyimpanan lokal:", err);
+        }
+    }
+
+    // 2. Fallback simpan lokal
+    const reports = getReports();
+    const report = reports.find(r => r.id === id);
+    if (!report) return;
+
     report.status = newStatus;
     report.adminResponse = newResponse;
     report.assignedOfficerId = newOfficerId;
     report.assignedOfficerName = officerName;
 
     const timeNow = new Date().toLocaleDateString('id-ID') + ' WIB';
-
     report.timeline.push({
         status: newStatus,
         date: timeNow,
@@ -652,19 +963,26 @@ function handleAdminUpdate(e, id) {
         note: officerObj ? `Disposisi tugas ke Petugas Lapangan: ${officerName}` : `Status diperbarui ke ${newStatus}`
     });
 
-    saveReports(reports);
+    saveReportsLocal(reports);
     closeModal();
     renderAdminTable();
-    showToast(`Laporan ${id} berhasil diperbarui!`);
+    showToast(`Laporan ${id} berhasil diperbarui (Simulasi Lokal)!`);
 }
 
+// =========================================================================
+// 9. TUGAS PETUGAS LAPANGAN (UPDATE PROGRES & BUKTI FISIK)
+// =========================================================================
 function renderFieldTasks() {
     const reports = getReports();
     const container = document.getElementById('field-tasks-container');
+    if (!container) return;
 
     const assignedTasks = reports.filter(r => r.assignedOfficerId === 'FO-01' || r.status === 'Diproses');
 
-    document.getElementById('field-officer-name-title').innerText = `Tugas Lapangan — ${currentUser ? currentUser.name : 'Budi Santoso'}`;
+    const titleEl = document.getElementById('field-officer-name-title');
+    if (titleEl) {
+        titleEl.innerText = `Tugas Lapangan — ${currentUser ? currentUser.name : 'Budi Santoso'}`;
+    }
 
     if (assignedTasks.length === 0) {
         container.innerHTML = `<div class="p-8 text-center bg-white border border-slate-200 rounded-xl text-slate-400 text-xs font-medium">Tidak ada tugas perbaikan lapangan aktif saat ini.</div>`;
@@ -727,7 +1045,7 @@ function openFieldUpdateModal(id) {
 
             <div>
                 <label class="block text-xs font-bold text-slate-700 mb-1">Unggah Bukti Hasil Perbaikan (Foto Selesai)</label>
-                <input type="file" id="field-up-file" class="text-xs text-slate-500">
+                <input type="file" id="field-up-file" accept="image/*" class="text-xs text-slate-500">
             </div>
 
             <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
@@ -739,25 +1057,55 @@ function openFieldUpdateModal(id) {
     modal.classList.remove('hidden');
 }
 
-function handleFieldUpdate(e, id) {
+async function handleFieldUpdate(e, id) {
     e.preventDefault();
-    const reports = getReports();
-    const report = reports.find(r => r.id === id);
-    if (!report) return;
 
     const newStatus = document.getElementById('field-up-status').value;
     const noteText = document.getElementById('field-up-note').value;
     const fileInput = document.getElementById('field-up-file');
+    const selectedFile = fileInput && fileInput.files.length > 0 ? fileInput.files[0] : null;
+
+    // 1. Simpan update ke database MySQL via API
+    if (isOnlineDb) {
+        try {
+            const formData = new FormData();
+            formData.append('id', id);
+            formData.append('status', newStatus);
+            formData.append('resolutionNotes', noteText);
+            if (selectedFile) {
+                formData.append('proof_file', selectedFile);
+            }
+
+            const res = await fetch(`${window.API_BASE_URL || API_BASE}/reports.php?action=field_update`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                closeModal();
+                showToast("Update teknisi lapangan berhasil dicatat di database MySQL!");
+                await fetchReportsAsync();
+                renderFieldTasks();
+                return;
+            }
+        } catch (err) {
+            console.warn("Gagal update petugas lapangan ke database, beralih ke lokal:", err);
+        }
+    }
+
+    // 2. Fallback simpan lokal
+    const reports = getReports();
+    const report = reports.find(r => r.id === id);
+    if (!report) return;
 
     report.status = newStatus;
-    
     if (newStatus === 'Selesai') {
         report.resolutionNotes = noteText;
         report.proofImage = "https://placehold.co/600x400/059669/ffffff?text=Foto+Bukti+Pekerjaan+Selesai";
     }
 
     const timeNow = new Date().toLocaleDateString('id-ID') + ' WIB';
-
     report.timeline.push({
         status: newStatus,
         date: timeNow,
@@ -765,17 +1113,21 @@ function handleFieldUpdate(e, id) {
         note: noteText
     });
 
-    saveReports(reports);
+    saveReportsLocal(reports);
     closeModal();
     renderFieldTasks();
-    showToast("Update teknisi lapangan berhasil tersimpan!");
+    showToast("Update teknisi lapangan berhasil tersimpan (Simulasi Lokal)!");
 }
 
+// =========================================================================
+// 10. RIWAYAT LAPORAN SAYA (BERDASARKAN reporterEmail)
+// =========================================================================
 function renderMyReports() {
     const reports = getReports();
     const grid = document.getElementById('my-reports-grid');
-    const myEmail = currentUser ? currentUser.email : "warga1@mail.com";
+    if (!grid) return;
 
+    const myEmail = currentUser ? currentUser.email : "warga1@mail.com";
     const myData = reports.filter(r => r.reporterEmail === myEmail);
 
     if (myData.length === 0) {
@@ -798,17 +1150,27 @@ function renderMyReports() {
     `).join('');
 }
 
+// =========================================================================
+// 11. NOTIFIKASI TOAST & INISIALISASI
+// =========================================================================
 function showToast(msg) {
     const toast = document.createElement('div');
-    toast.className = `fixed bottom-4 right-4 z-50 px-4 py-2.5 rounded-lg bg-slate-900 text-white text-xs font-semibold shadow-lg flex items-center gap-2 border border-slate-800`;
+    toast.className = `fixed bottom-4 right-4 z-50 px-4 py-2.5 rounded-lg bg-slate-900 text-white text-xs font-semibold shadow-lg flex items-center gap-2 border border-slate-800 animate-bounce`;
     toast.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-400"></i> <span>${msg}</span>`;
     document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 2800);
+    setTimeout(() => {
+        toast.classList.remove('animate-bounce');
+        setTimeout(() => toast.remove(), 2500);
+    }, 1000);
 }
 
-window.onload = function(){
+window.onload = async function() {
     document.getElementById('login-screen').style.display = 'flex';
     document.getElementById('app-shell').style.display = 'none';
+    
+    // Periksa koneksi ke Database MySQL
+    await checkDatabaseConnection();
+    
     updateAuthUI();
-    renderCurrentView();
+    await renderCurrentView();
 };
